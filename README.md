@@ -13,10 +13,13 @@ Ensure the following environment variables are set with correct values to be
 able to post to Twitter and HipChat:
 
 ```
+# Twitter credentials
 export TWITTER_CONSUMER_KEY="<value>"
 export TWITTER_CONSUMER_SECRET="<value>"
 export TWITTER_ACCESS_TOKEN="<value>"
 export TWITTER_ACCESS_SECRET="<value>"
+
+# HipChat credentials
 export HIPCHAT_API_KEY="<value>"
 
 # Not currently used, but may be included later: post to Echo event logging service
