@@ -65,7 +65,7 @@ def call_score(team1_score, team2_score):
                 values = ("Pink", team1_score.value, team2_score.value)
 
             msg = "%s team are the winners! %d %d" % values
-            communicate(msg, hipchat=True, tweet=True)
+            communicate(msg, hipchat=True)
 
             team1_score.value = 0
             team2_score.value = 0
