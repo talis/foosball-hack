@@ -3,7 +3,6 @@ from multiprocessing import Process, Value
 import RPi.GPIO as GPIO
 import os
 import time
-import pyttsx
 import hipchat
 import time
 import os, os.path
@@ -13,6 +12,7 @@ import subprocess
 import datetime
 import fileinput
 import tweepy
+from subprocess import call
 
 name = 'John Motson'
 hipchatApiKey = os.environ.get('HIPCHAT_API_KEY')
@@ -26,11 +26,6 @@ auth = tweepy.OAuthHandler(twitter_consumer_key, twitter_consumer_secret)
 auth.set_access_token(twitter_access_token, twitter_access_secret)
 twitter = tweepy.API(auth)
 
-voice = pyttsx.init()
-voice.setProperty("rate", 200)
-voice.say("Ready? Steady? Go!")
-voice.runAndWait()
-
 GPIO.setmode(GPIO.BCM)
 
 def communicate(msg, say=True, hipchat=False, tweet=False):
@@ -38,8 +33,7 @@ def communicate(msg, say=True, hipchat=False, tweet=False):
         print msg
 
         if say:
-            voice.say(msg)
-            voice.runAndWait()
+            call(["espeak", "-v", "en", "-s160", "-p99", msg])
         if hipchat:
 	    hipster.message_room('429941', name, msg)
         if tweet:
@@ -69,6 +63,9 @@ def call_score(team1_score, team2_score):
 
             team1_score.value = 0
             team2_score.value = 0
+        elif team1_score.value == team2_score.value:
+            msg = "%d to all" % (team1_score.value)
+            communicate(msg, hipchat=True)
         else:
             if team1_score.value > team2_score.value:
                 values = (team1_score.value, team2_score.value, "Pink")
@@ -125,7 +122,7 @@ def wait_for_access():
     while (internet_on() == False):
         time.sleep(2)
 
-    communicate("foosball table up and running on %s" % get_ip(), say=False, hipchat=True)
+    communicate("foosball table up and running on %s" % get_ip(), say=True, hipchat=True)
 
 def main():
     wait_for_access()
