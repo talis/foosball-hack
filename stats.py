@@ -1,3 +1,4 @@
+#!/usr/bin/env python2.7
 from flask import Flask, request
 from multiprocessing import Pool
 from boto.s3.key import Key
@@ -29,7 +30,9 @@ def download_week_file(week, year):
 	key.get_contents_to_filename(f.name)
 	f.seek(0)
 	result = json.load(f)
+        print 'downloaded file'
     except boto.exception.S3ResponseError as e:
+        print 'creating file'
 	result = {
 	    "meta": {"updated": 0},
 	    "games": [],
@@ -45,10 +48,19 @@ def download_week_file(week, year):
 	    }
 	}
 
-    os.unlink(f.name)
+    print 'unlinking file'
+    try:
+        os.unlink(f.name)
+    except:
+        pass
+
+    print 'closing file'
     f.close()
+    print 'closed file'
+    return result
 
 def upload_week_file(stat, week, year):
+    print 'uploading file method'
     stat['meta']['updated'] = int(time.time())
 
     conn = boto.connect_s3(
@@ -64,14 +76,21 @@ def upload_week_file(stat, week, year):
 	temp_file.flush()
 	key.set_contents_from_filename(temp_file.name)
 
+    print 'uploaded file'
     key.set_acl('public-read-write')
+    print 'set acl'
 
 def update_stat_sync(stat, current_week, current_year):
+    print 'sync uploading file'
     stats = download_week_file(current_week, current_year)
+    print 'setting stat'
+    print stats
     stats['games'].append(stat)
+    print 'uploading'
     upload_week_file(stats, current_week, current_year)
 
 def update_stat_async(stat, current_week, current_year):
+    print 'async uploading file'
     pool.apply_async(update_stat_sync, (stat, current_week, current_year))
 
 @app.route('/')

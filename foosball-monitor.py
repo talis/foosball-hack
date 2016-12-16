@@ -1,9 +1,8 @@
 #!/usr/bin/env python2.7
-from multiprocessing import Process, Value
 import RPi.GPIO as GPIO
 import os
 import time
-import hipchat
+import hipchat as hipchatAPI
 import time
 import os, os.path
 import ConfigParser
@@ -14,24 +13,16 @@ import fileinput
 import tweepy
 import signal
 import requests
+import json
 from subprocess import call
-
-name = 'John Motson'
-hipchatApiKey = os.environ.get('HIPCHAT_API_KEY')
-hipster = hipchat.HipChat(token=hipchatApiKey)
-twitter_consumer_key = os.environ.get('TWITTER_CONSUMER_KEY')
-twitter_consumer_secret = os.environ.get('TWITTER_CONSUMER_SECRET')
-twitter_access_token = os.environ.get('TWITTER_ACCESS_TOKEN')
-twitter_access_secret= os.environ.get('TWITTER_ACCESS_SECRET')
-
-auth = tweepy.OAuthHandler(twitter_consumer_key, twitter_consumer_secret)
-auth.set_access_token(twitter_access_token, twitter_access_secret)
-twitter = tweepy.API(auth)
 
 GPIO.setmode(GPIO.BCM)
 
 class State(object):
     def __init__(self):
+        self.reset()
+
+    def reset(self):
         self.start_time = -1
         self.end_time = -1
         self.conclusion_reason = 'na'
@@ -71,14 +62,30 @@ def wait_for_access():
     communicate("foosball table up and running on %s" % get_ip(), say=True, hipchat=True)
 
 def send_state(state):
-    requests.post('http://127.0.0.1:5000/stat', json=state.toJson())
+    try:
+        requests.post('http://127.0.0.1:5000/stat', json=state.toJson())
+    except Exception as excpt:
+        print excpt
 
 def communicate(msg, say=True, hipchat=False, tweet=False):
-    try:
-        print msg
+    print msg
 
+    name = 'John Motson'
+    hipchatApiKey = os.environ.get('HIPCHAT_API_KEY')
+    hipster = hipchatAPI.HipChat(token=hipchatApiKey)
+    twitter_consumer_key = os.environ.get('TWITTER_CONSUMER_KEY')
+    twitter_consumer_secret = os.environ.get('TWITTER_CONSUMER_SECRET')
+    twitter_access_token = os.environ.get('TWITTER_ACCESS_TOKEN')
+    twitter_access_secret= os.environ.get('TWITTER_ACCESS_SECRET')
+    
+    auth = tweepy.OAuthHandler(twitter_consumer_key, twitter_consumer_secret)
+    auth.set_access_token(twitter_access_token, twitter_access_secret)
+    twitter = tweepy.API(auth)
+
+    try:
         if say:
             call(["espeak", "-v", "en", "-s160", "-p99", msg])
+            #os.system('espeak -ven+f2 "test"' % msg)
         if hipchat:
 	    hipster.message_room('429941', name, msg)
         if tweet:
@@ -146,12 +153,11 @@ def score(state, pin):
         state.conclusion_reason = 'complete'
         state.end_time = now
         send_state(state)
-        state = State()
+        state.reset()
 
 def reset_scores(state, pin):
     time.sleep(0.01)
-
-    if GPIO.input(pin) != GPIO.HIGH:
+    if GPIO.input(pin) != GPIO.LOW:
         print 'phantom spike on reset pin %s' % pin
         return
 
@@ -160,7 +166,7 @@ def reset_scores(state, pin):
     state.end_time = time.time()
     send_state(state)
 
-    state = State()
+    state.reset()
 
 def supply_state(func, *args, **keywords):
     def newfunc(*fargs, **fkeywords):
@@ -173,18 +179,23 @@ def supply_state(func, *args, **keywords):
     newfunc.keywords = keywords
     return newfunc
 
-def setup_pin(num, state, func):
+def setup_pin(num, state, debounce, pin_state, func):
     GPIO.setmode(GPIO.BCM)
     GPIO.setup(num, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-    GPIO.add_event_detect(num, GPIO.FALLING, callback=supply_state(func, state))
+    GPIO.add_event_detect(
+        num,
+        pin_state,
+        callback=supply_state(func, state),
+        bouncetime=debounce
+    )
 
 def main():
     wait_for_access()
 
     state = State()
-    setup_pin(27, state, reset_scores)
-    setup_pin(10, state, score)
-    setup_pin(11, state, score)
+    setup_pin(27, state, 300, GPIO.FALLING, reset_scores)
+    setup_pin(10, state, 500, GPIO.RISING, score)
+    setup_pin(11, state, 500, GPIO.RISING, score)
     signal.pause()
 
 if __name__ == '__main__':
